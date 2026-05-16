@@ -1,0 +1,30 @@
+# requirements.txt
+# AI Chatbot — Bahria University Spring 2026
+# All dependencies with pinned versions for reproducibility.
+
+# --- Web Framework ---
+flask==3.0.3
+flask-cors==4.0.1
+python-dotenv==1.0.1
+
+# --- NLP ---
+nltk==3.8.1
+
+# --- Machine Learning ---
+scikit-learn==1.4.2
+numpy==1.26.4
+pandas==2.2.2
+joblib==1.4.2
+
+# --- Deep Learning ---
+tensorflow==2.16.1
+keras==3.3.3
+
+# --- Feature Engineering ---
+gensim==4.3.2
+
+# --- Database ---
+supabase==2.4.6
+
+# --- Testing ---
+pytest==8.2.0
