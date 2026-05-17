@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Customer Support Chatbot</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- ── Sidebar ─────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <span class="logo-icon">🤖</span>
+        <span class="logo-text">SupportBot</span>
+      </div>
+      <p class="logo-sub">AI Customer Support</p>
+    </div>
+
+    <!-- Model selector -->
+    <div class="sidebar-section">
+      <label class="sidebar-label">Model</label>
+      <div class="model-selector">
+        <button class="model-btn active" data-model="ann">
+          <span class="model-icon">🧠</span><span>Neural Network</span>
+        </button>
+        <button class="model-btn" data-model="nb">
+          <span class="model-icon">📊</span><span>Naive Bayes</span>
+        </button>
+        <button class="model-btn" data-model="knn">
+          <span class="model-icon">📍</span><span>KNN</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Confidence threshold slider -->
+    <div class="sidebar-section">
+      <label class="sidebar-label">
+        Confidence Threshold
+        <span class="threshold-value" id="threshold-display">30%</span>
+      </label>
+      <input
+        type="range"
+        id="confidence-slider"
+        class="confidence-slider"
+        min="0" max="95" step="5" value="30"
+      />
+      <p class="slider-hint">
+        Responses below this confidence use the fallback reply.
+      </p>
+    </div>
+
+    <!-- Session -->
+    <div class="sidebar-section">
+      <label class="sidebar-label">Session</label>
+      <div class="session-info">
+        <span class="session-id-label">ID:</span>
+        <span class="session-id-value" id="session-display">—</span>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="sidebar-section">
+      <label class="sidebar-label">Stats</label>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-value" id="stat-messages">0</span>
+          <span class="stat-label">Messages</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="stat-confidence">—</span>
+          <span class="stat-label">Last Conf.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="sidebar-section">
+      <label class="sidebar-label">Search Chat</label>
+      <div class="search-wrapper">
+        <input
+          type="text"
+          id="search-input"
+          class="search-input"
+          placeholder="Search messages..."
+          maxlength="100"
+        />
+        <button class="search-btn" id="search-btn">🔍</button>
+      </div>
+      <div id="search-results" class="search-results" style="display:none;"></div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="export-btn" id="export-btn">⬇ Export Chat</button>
+      <button class="clear-btn" id="clear-btn">🗑 Clear Chat</button>
+      <p class="footer-credit">Bahria University · Spring 2026</p>
+    </div>
+  </aside>
+
+  <!-- ── Main Chat Area ──────────────────────────────── -->
+  <main class="chat-main">
+
+    <header class="chat-header">
+      <div class="chat-header-info">
+        <h1 class="chat-title">Customer Support</h1>
+        <span class="status-dot"></span>
+        <span class="status-text">Online</span>
+      </div>
+      <div class="chat-header-meta" id="last-intent-display"></div>
+    </header>
+
+    <div class="chat-messages" id="chat-messages">
+      <div class="message bot-message" id="welcome-message">
+        <div class="avatar bot-avatar">🤖</div>
+        <div class="bubble">
+          <p>Hello! I'm your AI customer support assistant. How can I help you today?</p>
+          <span class="timestamp" id="welcome-time"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="typing-indicator" id="typing-indicator" style="display:none;">
+      <div class="avatar bot-avatar">🤖</div>
+      <div class="typing-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="input-wrapper">
+        <textarea
+          id="user-input"
+          class="chat-input"
+          placeholder="Type your message here..."
+          rows="1"
+          maxlength="500"
+        ></textarea>
+        <button class="send-btn" id="send-btn" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+               fill="currentColor" width="20" height="20">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
+      <p class="input-hint">
+        Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line
+      </p>
+    </div>
+
+  </main>
+</div>
+
+<script src="chat.js"></script>
+</body>
+</html>

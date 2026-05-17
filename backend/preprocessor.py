@@ -20,16 +20,16 @@ inference always apply identical transformations.
 """
 
 import string
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
+
+from nltk.tokenize import word_tokenize  # type: ignore
+from nltk.corpus import stopwords  # type: ignore
+from nltk.stem import WordNetLemmatizer  # type: ignore
 
 # ---------------------------------------------------------------------------
 # Module-level singletons — instantiated once to avoid repeated overhead.
 # ---------------------------------------------------------------------------
 _lemmatizer = WordNetLemmatizer()
-_stop_words = set(stopwords.words("english"))
+_stop_words: set[str] = set(stopwords.words("english"))  # pyright: ignore[reportUnknownMemberType]
 
 
 def preprocess(text: str) -> str:
