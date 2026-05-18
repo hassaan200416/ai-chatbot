@@ -4,29 +4,24 @@ backend/predictor.py
 Model loading and inference module for the AI Chatbot.
 
 Workflow:
-  1. At import time, reads MODEL_TYPE from config ("nb", "knn", or "ann").
-  2. Loads the corresponding saved model and TF-IDF vectorizer from
-     backend/saved_models/.
-  3. Exposes predict() which:
-       a. Preprocesses raw user text via preprocessor.py
-       b. Transforms it using the loaded TF-IDF vectorizer
-       c. Runs inference with the loaded model
-       d. Returns the predicted intent label and confidence score
+  1. At import time, loads ALL THREE models (NB, KNN, ANN) into memory.
+  2. predict() accepts a model_type parameter so the frontend can switch
+     models per request without restarting the server.
+  3. Returns predicted intent, confidence, and which model was used.
 
 Supported models:
-  - "nb"  → Scikit-learn MultinomialNB (.pkl via joblib)
-  - "knn" → Scikit-learn KNeighborsClassifier (.pkl via joblib)
-  - "ann" → Keras MLP (.h5 via keras.models.load_model)
+  - "nb"  → Scikit-learn MultinomialNB
+  - "knn" → Scikit-learn KNeighborsClassifier
+  - "ann" → Keras MLP
 
 This module is imported by backend/app.py only.
-Models are trained by ml/train_nb.py, ml/train_knn.py, ml/train_ann.py.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from typing import Any, cast
+from typing import Any
 
 import joblib  # pyright: ignore[reportMissingTypeStubs]
 import numpy as np
@@ -37,7 +32,7 @@ from preprocessor import preprocess
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# File name constants — must match what the training scripts save.
+# File paths
 # ---------------------------------------------------------------------------
 _TFIDF_PATH         = os.path.join(config.models_dir, "tfidf_vectorizer.pkl")
 _NB_MODEL_PATH      = os.path.join(config.models_dir, "nb_model.pkl")
@@ -45,143 +40,135 @@ _KNN_MODEL_PATH     = os.path.join(config.models_dir, "knn_model.pkl")
 _ANN_MODEL_PATH     = os.path.join(config.models_dir, "ann_model.h5")
 _LABEL_ENCODER_PATH = os.path.join(config.models_dir, "label_encoder.pkl")
 
-# Confidence threshold — predictions below this score return None intent,
-# triggering the fallback response in response_map.py.
-# Note: KNN uses a voting-based confidence so threshold is lower.
 _CONFIDENCE_THRESHOLD = 0.30
 
-_vectorizer: Any | None = None
-_label_encoder: Any | None = None
-_model: Any | None = None
-_model_type: str | None = None
+_models: dict[str, Any] | None = None
 
 
-def _load_models() -> tuple[Any, Any, Any, str]:
+def _load_all_models() -> dict[str, Any]:
     """
-    Load the TF-IDF vectorizer, label encoder, and the active model from disk.
+    Load all three models plus shared artifacts at startup.
+    All models are kept in memory so switching is instant — no disk reads
+    per request.
 
     Returns:
-        tuple: (vectorizer, label_encoder, model, model_type_str)
+        dict with keys: vectorizer, label_encoder, nb, knn, ann
 
     Raises:
-        FileNotFoundError: If any required model file is missing.
+        FileNotFoundError: If any model file is missing.
     """
-    required_files = [_TFIDF_PATH, _LABEL_ENCODER_PATH]
-
-    model_path_map = {
-        "ann": _ANN_MODEL_PATH,
-        "knn": _KNN_MODEL_PATH,
-        "nb":  _NB_MODEL_PATH,
+    required = {
+        "TF-IDF vectorizer": _TFIDF_PATH,
+        "Label encoder":     _LABEL_ENCODER_PATH,
+        "Naive Bayes":       _NB_MODEL_PATH,
+        "KNN":               _KNN_MODEL_PATH,
+        "ANN":               _ANN_MODEL_PATH,
     }
 
-    active_model_path = model_path_map.get(config.model_type, _ANN_MODEL_PATH)
-    required_files.append(active_model_path)
-
-    for path in required_files:
+    for label, path in required.items():
         if not os.path.exists(path):
             raise FileNotFoundError(
-                f"Model file not found: {path}\n"
-                f"Run ml/train_{config.model_type}.py first."
+                f"{label} not found at {path}\n"
+                f"Run the corresponding training script first."
             )
 
-    # --- Load shared artifacts ---
     vectorizer    = joblib.load(_TFIDF_PATH)  # pyright: ignore[reportUnknownMemberType]
     label_encoder = joblib.load(_LABEL_ENCODER_PATH)  # pyright: ignore[reportUnknownMemberType]
-    logger.info("Loaded TF-IDF vectorizer and label encoder.")
+    nb_model      = joblib.load(_NB_MODEL_PATH)  # pyright: ignore[reportUnknownMemberType]
+    knn_model     = joblib.load(_KNN_MODEL_PATH)  # pyright: ignore[reportUnknownMemberType]
 
-    # --- Load the active model ---
-    model: Any = None
-    if config.model_type == "ann":
-        from keras.models import load_model  # pyright: ignore[reportMissingImports, reportUnknownVariableType]
-        model = load_model(_ANN_MODEL_PATH)  # pyright: ignore[reportUnknownVariableType]
-        logger.info("Loaded ANN model.")
-    elif config.model_type == "knn":
-        model = joblib.load(_KNN_MODEL_PATH)  # pyright: ignore[reportUnknownMemberType]
-        logger.info("Loaded KNN model.")
-    else:
-        model = joblib.load(_NB_MODEL_PATH)  # pyright: ignore[reportUnknownMemberType]
-        logger.info("Loaded Naive Bayes model.")
+    from keras.models import load_model  # pyright: ignore[reportMissingImports, reportUnknownVariableType]
+    ann_model: Any = load_model(_ANN_MODEL_PATH)  # pyright: ignore[reportUnknownVariableType]
 
-    return vectorizer, label_encoder, cast(Any, model), config.model_type
+    logger.info("All 3 models loaded into memory (NB, KNN, ANN).")
+
+    return {
+        "vectorizer":     vectorizer,
+        "label_encoder":  label_encoder,
+        "nb":             nb_model,
+        "knn":            knn_model,
+        "ann":            ann_model,
+    }
 
 
-def predict(user_text: str) -> dict[str, Any]:
+def predict(
+    user_text: str,
+    confidence_threshold: float = _CONFIDENCE_THRESHOLD,
+    model_type: str | None = None,
+) -> dict[str, Any]:
     """
     Run the full inference pipeline on raw user input.
 
-    Pipeline:
-      1. Preprocess text (lowercase, tokenise, remove stopwords, lemmatise)
-      2. Transform with TF-IDF vectorizer
-      3. Run model inference
-      4. Decode label and extract confidence
-      5. Apply confidence threshold
-
     Args:
-        user_text (str): Raw message from the user.
+        user_text            (str):   Raw message from the user.
+        confidence_threshold (float): Minimum confidence to return an intent.
+                                      Below this returns None (fallback).
+        model_type           (str):   Which model to use — "nb", "knn", "ann".
+                                      Defaults to config.model_type if None.
 
     Returns:
-        dict with keys:
-            intent     (str | None): Predicted intent label, or None if
-                                     confidence is below threshold.
-            confidence (float):      Confidence score between 0.0 and 1.0.
-            model_used (str):        "nb", "knn", or "ann".
+        dict:
+            intent     (str|None): Predicted intent or None if low confidence.
+            confidence (float):    Confidence score 0.0–1.0.
+            model_used (str):      Which model was used.
     """
-    if not user_text or not user_text.strip():
-        return {"intent": None, "confidence": 0.0, "model_used": config.model_type}
+    # Resolve which model to use.
+    active = (model_type or config.model_type).lower()
+    if active not in ("nb", "knn", "ann"):
+        active = config.model_type
 
-    assert _vectorizer is not None
-    assert _label_encoder is not None
-    assert _model is not None
+    if not user_text or not user_text.strip():
+        return {"intent": None, "confidence": 0.0, "model_used": active}
+
+    assert _models is not None
+    models = _models
 
     # Step 1 — Preprocess.
     cleaned  = preprocess(user_text)
 
     # Step 2 — TF-IDF transform.
-    features = _vectorizer.transform([cleaned])
+    features = models["vectorizer"].transform([cleaned])
 
-    # Step 3 — Inference.
-    if config.model_type == "ann":
-        # Keras returns (1, n_classes) probability array.
-        proba = _model.predict(features.toarray(), verbose=0)[0]
+    # Step 3 — Run inference with the selected model.
+    if active == "ann":
+        proba = models["ann"].predict(features.toarray(), verbose=0)[0]
 
-    elif config.model_type == "knn":
-        # KNN predict_proba returns fraction of neighbours per class.
-        # This is a valid confidence measure for voting-based classifiers.
-        proba = _model.predict_proba(features)[0]
+    elif active == "knn":
+        proba = models["knn"].predict_proba(features)[0]
 
-    else:
-        # Naive Bayes log-probability normalised to probabilities.
-        proba = _model.predict_proba(features)[0]
+    else:  # nb
+        proba = models["nb"].predict_proba(features)[0]
 
     # Step 4 — Top class and confidence.
     class_index = int(np.argmax(proba))
     confidence  = float(proba[class_index])
-    intent      = _label_encoder.inverse_transform([class_index])[0]
+    intent      = models["label_encoder"].inverse_transform([class_index])[0]
 
     # Step 5 — Confidence threshold.
-    if confidence < _CONFIDENCE_THRESHOLD:
+    if confidence < confidence_threshold:
         logger.info(
-            "Low confidence (%.2f) for '%s' — returning fallback.",
-            confidence, user_text
+            "Low confidence (%.2f) below threshold (%.2f) — fallback.",
+            confidence, confidence_threshold
         )
         intent = None
 
-    logger.info("Predicted intent='%s' confidence=%.4f model='%s'",
-                intent, confidence, config.model_type)
+    logger.info(
+        "Predicted intent='%s' confidence=%.4f model='%s'",
+        intent, confidence, active
+    )
 
     return {
         "intent":     intent,
         "confidence": round(confidence, 4),
-        "model_used": config.model_type,
+        "model_used": active,
     }
 
 
 # ---------------------------------------------------------------------------
-# Load models at import time.
+# Load ALL models at import time — switching is then instant per request.
 # ---------------------------------------------------------------------------
 try:
-    _vectorizer, _label_encoder, _model, _model_type = _load_models()
+    _models = _load_all_models()
 except FileNotFoundError as e:
     logger.warning("Models not loaded: %s", e)
-    _vectorizer = _label_encoder = _model = None
-    _model_type = None
+    _models = None

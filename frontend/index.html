@@ -6,11 +6,9 @@
   <title>AI Customer Support Chatbot</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="dark-mode">
 
 <div class="app-wrapper">
-
-  <!-- ── Sidebar ─────────────────────────────────────── -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo">
@@ -20,7 +18,6 @@
       <p class="logo-sub">AI Customer Support</p>
     </div>
 
-    <!-- Model selector -->
     <div class="sidebar-section">
       <label class="sidebar-label">Model</label>
       <div class="model-selector">
@@ -36,7 +33,6 @@
       </div>
     </div>
 
-    <!-- Confidence threshold slider -->
     <div class="sidebar-section">
       <label class="sidebar-label">
         Confidence Threshold
@@ -48,12 +44,9 @@
         class="confidence-slider"
         min="0" max="95" step="5" value="30"
       />
-      <p class="slider-hint">
-        Responses below this confidence use the fallback reply.
-      </p>
+      <p class="slider-hint">Responses below this confidence use the fallback reply.</p>
     </div>
 
-    <!-- Session -->
     <div class="sidebar-section">
       <label class="sidebar-label">Session</label>
       <div class="session-info">
@@ -62,7 +55,6 @@
       </div>
     </div>
 
-    <!-- Stats -->
     <div class="sidebar-section">
       <label class="sidebar-label">Stats</label>
       <div class="stats-grid">
@@ -77,7 +69,6 @@
       </div>
     </div>
 
-    <!-- Search -->
     <div class="sidebar-section">
       <label class="sidebar-label">Search Chat</label>
       <div class="search-wrapper">
@@ -94,23 +85,99 @@
     </div>
 
     <div class="sidebar-footer">
+      <button class="analytics-btn" id="analytics-btn">📊 Analytics</button>
       <button class="export-btn" id="export-btn">⬇ Export Chat</button>
       <button class="clear-btn" id="clear-btn">🗑 Clear Chat</button>
       <p class="footer-credit">Bahria University · Spring 2026</p>
     </div>
   </aside>
 
-  <!-- ── Main Chat Area ──────────────────────────────── -->
   <main class="chat-main">
-
     <header class="chat-header">
       <div class="chat-header-info">
         <h1 class="chat-title">Customer Support</h1>
         <span class="status-dot"></span>
         <span class="status-text">Online</span>
       </div>
-      <div class="chat-header-meta" id="last-intent-display"></div>
+      <div class="chat-header-right">
+        <div class="chat-header-meta" id="last-intent-display"></div>
+        <button class="compare-btn" id="compare-btn" title="Compare all models">⚖️ Compare</button>
+        <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle theme">🌙</button>
+      </div>
     </header>
+
+    <div class="modal-overlay" id="compare-modal" style="display:none;">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">⚖️ Model Comparison</h2>
+          <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <div class="modal-input-row">
+          <input
+            type="text"
+            id="compare-input"
+            class="compare-input"
+            placeholder="Type a message to compare all 3 models..."
+            maxlength="300"
+          />
+          <button class="compare-send-btn" id="compare-send-btn">Compare →</button>
+        </div>
+        <div class="compare-grid" id="compare-grid">
+          <div class="compare-card" id="compare-nb">
+            <div class="compare-card-header">
+              <span class="compare-model-name">📊 Naive Bayes</span>
+              <span class="compare-badge" id="nb-badge">—</span>
+            </div>
+            <div class="compare-response" id="nb-response">Send a message to compare.</div>
+            <div class="compare-meta" id="nb-meta"></div>
+          </div>
+          <div class="compare-card" id="compare-knn">
+            <div class="compare-card-header">
+              <span class="compare-model-name">📍 KNN</span>
+              <span class="compare-badge" id="knn-badge">—</span>
+            </div>
+            <div class="compare-response" id="knn-response">Send a message to compare.</div>
+            <div class="compare-meta" id="knn-meta"></div>
+          </div>
+          <div class="compare-card" id="compare-ann">
+            <div class="compare-card-header">
+              <span class="compare-model-name">🧠 Neural Network</span>
+              <span class="compare-badge" id="ann-badge">—</span>
+            </div>
+            <div class="compare-response" id="ann-response">Send a message to compare.</div>
+            <div class="compare-meta" id="ann-meta"></div>
+          </div>
+        </div>
+        <p class="compare-hint">All 3 models receive the exact same message simultaneously.</p>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="analytics-modal" style="display:none;">
+      <div class="modal analytics-modal-inner">
+        <div class="modal-header">
+          <h2 class="modal-title">📊 Intent Analytics</h2>
+          <button class="modal-close" id="analytics-modal-close">✕</button>
+        </div>
+        <div class="analytics-summary">
+          <div class="summary-card">
+            <span class="summary-value" id="analytics-total">—</span>
+            <span class="summary-label">Total Messages</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value" id="analytics-intents">—</span>
+            <span class="summary-label">Unique Intents</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value" id="analytics-top">—</span>
+            <span class="summary-label">Top Intent</span>
+          </div>
+        </div>
+        <div class="analytics-chart" id="analytics-chart">
+          <p class="analytics-loading">Loading analytics...</p>
+        </div>
+        <p class="compare-hint" style="margin-top:12px;">Data pulled live from Supabase across all sessions.</p>
+      </div>
+    </div>
 
     <div class="chat-messages" id="chat-messages">
       <div class="message bot-message" id="welcome-message">
@@ -139,17 +206,13 @@
           maxlength="500"
         ></textarea>
         <button class="send-btn" id="send-btn" disabled>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-               fill="currentColor" width="20" height="20">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
           </svg>
         </button>
       </div>
-      <p class="input-hint">
-        Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line
-      </p>
+      <p class="input-hint">Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</p>
     </div>
-
   </main>
 </div>
 

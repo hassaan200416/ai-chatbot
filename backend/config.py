@@ -13,6 +13,7 @@ Workflow:
 
 import os
 from dataclasses import dataclass
+from typing import cast
 from dotenv import load_dotenv
 
 # Load .env file into environment variables as early as possible.
@@ -65,9 +66,9 @@ def _load_config() -> Config:
 
     return Config(
         flask_env=os.getenv("FLASK_ENV", "production"),
-        flask_secret_key=os.getenv("FLASK_SECRET_KEY"),
-        supabase_url=os.getenv("SUPABASE_URL"),
-        supabase_key=os.getenv("SUPABASE_KEY"),
+        flask_secret_key=cast(str, os.getenv("FLASK_SECRET_KEY")),
+        supabase_url=cast(str, os.getenv("SUPABASE_URL")),
+        supabase_key=cast(str, os.getenv("SUPABASE_KEY")),
         model_type=os.getenv("MODEL_TYPE", "ann").lower(),
         base_dir=base_dir,
         models_dir=models_dir,

@@ -18,6 +18,7 @@ Changes from v1:
 import logging
 import os
 import sys
+from typing import Any
 
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
@@ -85,6 +86,20 @@ def chat() -> tuple[Response, int]:
     user_message = data.get("message", "").strip()
     session_id   = data.get("session_id", "").strip()
 
+    # Read optional confidence threshold from request.
+    # Must be a float between 0.0 and 0.95. Defaults to 0.30.
+    try:
+        confidence_threshold = float(data.get("confidence_threshold", 0.30))
+        confidence_threshold = max(0.0, min(0.95, confidence_threshold))
+    except (ValueError, TypeError):
+        confidence_threshold = 0.30
+
+    # Read model type from request — allows frontend to switch models live.
+    # Must be one of the three supported types, defaults to config value.
+    requested_model = data.get("model_type", config.model_type).strip().lower()
+    if requested_model not in ("nb", "knn", "ann"):
+        requested_model = config.model_type
+
     if not user_message:
         return jsonify({"error": "message is required"}), 400
     if not session_id:
@@ -92,7 +107,7 @@ def chat() -> tuple[Response, int]:
 
     try:
         # Step 1 — Run ML inference.
-        result     = predict(user_message)
+        result     = predict(user_message, confidence_threshold, requested_model)
         intent     = result["intent"]
         confidence = result["confidence"]
         model_used = result["model_used"]
@@ -207,6 +222,66 @@ def search() -> tuple[Response, int]:
         "results":    results,
         "count":      len(results),
     }), 200
+
+def _supabase_analytics() -> Any:
+    """Return the shared Supabase client for analytics queries."""
+    from history import _supabase
+    return _supabase
+
+
+@app.route("/api/analytics", methods=["GET"])
+def analytics() -> tuple[Response, int]:
+    """
+    Returns intent frequency analytics from the full chat history.
+
+    Aggregates all predicted_intent values across all sessions and
+    returns them sorted by frequency descending.
+
+    Query Parameters:
+        limit (int, optional): Max number of intents to return (default 27).
+
+    Response JSON (200):
+        {
+            "intents": [
+                {"intent": "track_order", "count": 42},
+                {"intent": "get_refund",  "count": 31},
+                ...
+            ],
+            "total_messages": int
+        }
+    """
+    try:
+        limit = min(int(request.args.get("limit", 27)), 27)
+    except ValueError:
+        limit = 27
+
+    try:
+        response: Any = (
+            _supabase_analytics()
+            .table("chat_history")
+            .select("predicted_intent")
+            .not_.is_("predicted_intent", "null")
+            .execute()
+        )
+
+        from collections import Counter
+        counts: Counter[Any] = Counter(
+            row["predicted_intent"]
+            for row in response.data
+            if row.get("predicted_intent")
+        )
+
+        total = sum(counts.values())
+        intents = [
+            {"intent": intent, "count": count}
+            for intent, count in counts.most_common(limit)
+        ]
+
+        return jsonify({"intents": intents, "total_messages": total}), 200
+
+    except Exception as exc:
+        logger.error("Error in /api/analytics: %s", exc, exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 if __name__ == "__main__":
